@@ -1,22 +1,27 @@
 #!/bin/bash
 
+# Enable strict error handling
+set -euo pipefail  # Exit on error, unset variables, and fail on any command in a pipeline failing
+shopt -s inherit_errexit nullglob  # Inherit errexit in subshells and handle empty globs
+
 # This script sets up a full Xfce4 installation on Gentoo
 # It includes Thunar, Firefox, and other essential packages
 # It only prints fatal errors to the terminal and includes a progress bar
 
 # Function to check for errors and continue
 check_error() {
-    if [ $? -ne 0 ]; then
-        echo -e "\033[91mFatal error occurred during installation.\033[39m"
-        exit 1
+    local exit_code=$?  # Capture the exit code of the last command
+    if [ $exit_code -ne 0 ]; then
+        echo -e "\033[91mFatal error occurred during installation: Exit code $exit_code\033[39m"
+        echo "Last command: $BASH_COMMAND"  # Show the last executed command
+        exit $exit_code
     fi
 }
 
 # Function to install packages with a progress bar
 install_with_progress() {
     echo "Installing $1..."
-    emerge --ask --force "$1" > /dev/null 2>&1
-    check_error
+    emerge --ask --force "$1" > /dev/null 2>&1 || { echo "Failed to install $1"; check_error; }
 }
 
 # Function to check if systemd is being used
@@ -30,18 +35,15 @@ is_systemd() {
 
 # Update the system
 echo "Updating the system..."
-emerge --sync > /dev/null 2>&1
-check_error
+emerge --sync > /dev/null 2>&1 || { echo "Failed to update the system"; check_error; }
 
 # Set the profile for Xfce
 echo "Setting the profile for Xfce..."
-eselect profile set default/linux/amd64/23.0/desktop > /dev/null 2>&1
-check_error
+eselect profile set default/linux/amd64/23.0/desktop > /dev/null 2>&1 || { echo "Failed to set profile"; check_error; }
 
 # Set USE flags in make.conf
 echo "Setting USE flags..."
-echo 'USE="X gtk gnome systemd"' >> /etc/portage/make.conf
-check_error
+echo 'USE="X gtk gnome systemd"' >> /etc/portage/make.conf || { echo "Failed to set USE flags"; check_error; }
 
 # Install systemd forcefully
 install_with_progress "sys-apps/systemd"
@@ -60,27 +62,27 @@ install_with_progress "www-client/firefox"
 # Add user to necessary groups
 echo "Adding user to necessary groups..."
 for group in cdrom cdrw usb; do
-    gpasswd -a $(whoami) $group || check_error
+    gpasswd -a "$(whoami)" "$group" || { echo "Failed to add user to group $group"; check_error; }
 done
 
 # Update environment variables
 echo "Updating environment variables..."
-env-update && source /etc/profile || check_error
+env-update && source /etc/profile || { echo "Failed to update environment variables"; check_error; }
 
 # Create .xinitrc for starting Xfce
 echo "Creating .xinitrc for starting Xfce..."
-echo "exec startxfce4" > ~/.xinitrc || check_error
+echo "exec startxfce4" > ~/.xinitrc || { echo "Failed to create .xinitrc"; check_error; }
 
 # Enable necessary services based on the init system
 echo "Enabling necessary services..."
 if is_systemd; then
     # If systemd is detected, use systemctl to enable services
-    systemctl enable dbus.service
-    systemctl enable display-manager.service
+    systemctl enable dbus.service || { echo "Failed to enable dbus.service"; check_error; }
+    systemctl enable display-manager.service || { echo "Failed to enable display-manager.service"; check_error; }
 else
     # If systemd is not detected, use rc-update for OpenRC
-    rc-update add dbus default || check_error
-    rc-update add display-manager default || check_error
+    rc-update add dbus default || { echo "Failed to add dbus to default"; check_error; }
+    rc-update add display-manager default || { echo "Failed to add display-manager to default"; check_error; }
 fi
 
 # Final message
