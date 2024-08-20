@@ -19,6 +19,15 @@ install_with_progress() {
     check_error
 }
 
+# Function to check if systemd is being used
+is_systemd() {
+    if [ -d /run/systemd/system ]; then
+        return 0  # Systemd is present
+    else
+        return 1  # Systemd is not present
+    fi
+}
+
 # Update the system
 echo "Updating the system..."
 emerge --sync > /dev/null 2>&1
@@ -62,10 +71,17 @@ env-update && source /etc/profile || check_error
 echo "Creating .xinitrc for starting Xfce..."
 echo "exec startxfce4" > ~/.xinitrc || check_error
 
-# Enable necessary services
+# Enable necessary services based on the init system
 echo "Enabling necessary services..."
-rc-update add dbus default || check_error
-rc-update add display-manager default || check_error
+if is_systemd; then
+    # If systemd is detected, use systemctl to enable services
+    systemctl enable dbus.service
+    systemctl enable display-manager.service
+else
+    # If systemd is not detected, use rc-update for OpenRC
+    rc-update add dbus default || check_error
+    rc-update add display-manager default || check_error
+fi
 
 # Final message
 echo "Xfce installation and setup complete! You can start Xfce by typing 'startx'."
