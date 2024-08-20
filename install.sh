@@ -18,10 +18,23 @@ check_error() {
     fi
 }
 
+# Function to check if a package is installed
+is_installed() {
+    if emerge -q "$1" > /dev/null 2>&1; then
+        return 0  # Package is installed
+    else
+        return 1  # Package is not installed
+    fi
+}
+
 # Function to install packages with a progress bar
 install_with_progress() {
-    echo "Installing $1..."
-    emerge --ask --force "$1" > /dev/null 2>&1 || { echo "Failed to install $1"; check_error; }
+    if is_installed "$1"; then
+        echo "$1 is already installed."
+    else
+        echo "Installing $1..."
+        emerge --ask --force "$1" > /dev/null 2>&1 || { echo "Failed to install $1"; check_error; }
+    fi
 }
 
 # Function to check if systemd is being used
@@ -61,7 +74,7 @@ install_with_progress "www-client/firefox"
 
 # Add user to necessary groups
 echo "Adding user to necessary groups..."
-for group in cdrom cdrw usb; do
+for group in audio cdrom cdrw usb; do
     gpasswd -a "$(whoami)" "$group" || { echo "Failed to add user to group $group"; check_error; }
 done
 
